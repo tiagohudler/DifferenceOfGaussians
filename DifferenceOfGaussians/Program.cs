@@ -33,7 +33,7 @@ namespace DifferenceOfGaussians
                         var fs = file.Open(FileMode.Open);
                         fs.Close();
 
-                        var gaussianBlur = new GaussianBlur(8);
+                        var gaussianBlur = new GaussianBlur(8, 7);
 
                         using var result = gaussianBlur.Blur(file);
 

@@ -12,10 +12,12 @@ namespace DifferenceOfGaussians.Lib
     public class GaussianBlur
     {
         private double standardDeviation;
+        private int kernelRadius;
 
-        public GaussianBlur(double standardDeviation)
+        public GaussianBlur(double standardDeviation, int kernelRadius)
         {
             this.standardDeviation = standardDeviation;
+            this.kernelRadius = kernelRadius;
         }
 
         public Stream Blur(FileInfo image)
@@ -32,7 +34,6 @@ namespace DifferenceOfGaussians.Lib
 
             System.Runtime.InteropServices.Marshal.Copy(pointer, rgbValues, 0, bytesQtt);
 
-            int kernelRadius = 7;
             int bytesPerPixel = bitmap.PixelFormat == PixelFormat.Format32bppArgb ? 4 : 3;
             int stride = data.Stride;
 
