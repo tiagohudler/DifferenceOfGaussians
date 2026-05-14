@@ -1,4 +1,6 @@
-﻿namespace DifferenceOfGaussians
+﻿using DifferenceOfGaussians.Lib;
+
+namespace DifferenceOfGaussians
 {
     internal class Program
     {
@@ -15,11 +17,9 @@
             if (input == "s")
             {
                 Console.WriteLine("Please enter the absolute path to your image");
-                var targetPath = Console.ReadLine();
-
                 while (true)
                 {
-                    targetPath = Console.ReadLine();
+                    var targetPath = Console.ReadLine();
 
                     if (targetPath == null)
                     {
@@ -30,7 +30,21 @@
 
                     try
                     {
-                        file.Open(FileMode.Open);
+                        var fs = file.Open(FileMode.Open);
+                        fs.Close();
+
+                        var gaussianBlur = new GaussianBlur(8);
+
+                        using var result = gaussianBlur.Blur(file);
+
+                        FileStream output = new FileStream(file.FullName.Replace(".", "_blurred."), FileMode.OpenOrCreate);
+
+                        result.Position = 0;
+                        result.CopyTo(output);
+
+                        Console.WriteLine("Done!");
+
+                        break;
                     }
                     catch (FileNotFoundException)
                     {
