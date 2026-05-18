@@ -37,17 +37,9 @@ namespace DifferenceOfGaussians.Lib
             int bytesPerPixel = bitmap.PixelFormat == PixelFormat.Format32bppArgb ? 4 : 3;
             int stride = data.Stride;
 
-            // First pass: horizontal blur (x-axis)
-            byte[] horizontalPass = new byte[bytesQtt];
-            Array.Copy(rgbValues, horizontalPass, bytesQtt);
-            ApplyHorizontalGaussianPass(horizontalPass, bitmap.Width, bitmap.Height, stride, bytesPerPixel, kernelRadius);
+            byte[] blurred = BlurPixelData(rgbValues, bitmap.Width, bitmap.Height, stride, bytesPerPixel);
 
-            // Second pass: vertical blur (y-axis)
-            byte[] verticalPass = new byte[bytesQtt];
-            Array.Copy(horizontalPass, verticalPass, bytesQtt);
-            ApplyVerticalGaussianPass(verticalPass, bitmap.Width, bitmap.Height, stride, bytesPerPixel, kernelRadius);
-
-            System.Runtime.InteropServices.Marshal.Copy(verticalPass, 0, pointer, bytesQtt);
+            System.Runtime.InteropServices.Marshal.Copy(blurred, 0, pointer, bytesQtt);
             bitmap.UnlockBits(data);
 
             MemoryStream output = new MemoryStream();
@@ -55,6 +47,20 @@ namespace DifferenceOfGaussians.Lib
             output.Position = 0;
 
             return output;
+        }
+
+        public byte[] BlurPixelData(byte[] pixelData, int width, int height, int stride, int bytesPerPixel)
+        {
+            byte[] result = new byte[pixelData.Length];
+            Array.Copy(pixelData, result, pixelData.Length);
+
+            // First pass: horizontal blur (x-axis)
+            ApplyHorizontalGaussianPass(result, width, height, stride, bytesPerPixel, kernelRadius);
+
+            // Second pass: vertical blur (y-axis)
+            ApplyVerticalGaussianPass(result, width, height, stride, bytesPerPixel, kernelRadius);
+
+            return result;
         }
 
         private void ApplyHorizontalGaussianPass(byte[] pixelData, int width, int height, int stride, int bytesPerPixel, int kernelRadius)

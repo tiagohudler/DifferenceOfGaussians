@@ -1,4 +1,5 @@
 ﻿using DifferenceOfGaussians.Lib;
+using DoG = DifferenceOfGaussians.Lib.DifferenceOfGaussians;
 
 namespace DifferenceOfGaussians
 {
@@ -33,11 +34,13 @@ namespace DifferenceOfGaussians
                         var fs = file.Open(FileMode.Open);
                         fs.Close();
 
-                        var gaussianBlur = new GaussianBlur(8, 7);
+                        // kernel radius 7 is sufficient, pixels outside this radius can safely be ignored
+                        // sigma1 (larger blur) and sigma2 (smaller blur) for Difference of Gaussians
+                        var dog = new DoG(20, 4, 7);
 
-                        using var result = gaussianBlur.Blur(file);
+                        using var result = dog.Apply(file);
 
-                        FileStream output = new FileStream(file.FullName.Replace(".", "_blurred."), FileMode.OpenOrCreate);
+                        FileStream output = new FileStream(file.FullName.Replace(".", "_dog."), FileMode.OpenOrCreate);
 
                         result.Position = 0;
                         result.CopyTo(output);
