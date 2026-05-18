@@ -34,16 +34,30 @@ namespace DifferenceOfGaussians
                         var fs = file.Open(FileMode.Open);
                         fs.Close();
 
-                        // kernel radius 7 is sufficient, pixels outside this radius can safely be ignored
-                        // sigma1 (larger blur) and sigma2 (smaller blur) for Difference of Gaussians
+                        // Apply Difference of Gaussians
                         var dog = new DoG(20, 4, 7);
+                        using var dogResult = dog.Apply(file);
 
-                        using var result = dog.Apply(file);
+                        // Save DoG result to temporary file
+                        string tempFile = file.FullName.Replace(".", "_temp.");
+                        using (FileStream tempOutput = new FileStream(tempFile, FileMode.OpenOrCreate))
+                        {
+                            dogResult.Position = 0;
+                            dogResult.CopyTo(tempOutput);
+                        }
 
+                        // Apply thresholding to create binary image (black background, white edges)
+                        var threshold = new Threshold(128);
+                        using var thresholdResult = threshold.Apply(new FileInfo(tempFile));
+
+                        // Save final thresholded result
                         FileStream output = new FileStream(file.FullName.Replace(".", "_dog."), FileMode.OpenOrCreate);
+                        thresholdResult.Position = 0;
+                        thresholdResult.CopyTo(output);
+                        output.Close();
 
-                        result.Position = 0;
-                        result.CopyTo(output);
+                        // Clean up temporary file
+                        File.Delete(tempFile);
 
                         Console.WriteLine("Done!");
 
