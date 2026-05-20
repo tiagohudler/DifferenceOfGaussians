@@ -51,8 +51,9 @@ namespace DifferenceOfGaussians.Lib
             bitmap.UnlockBits(data);
 
             int bytesPerPixel = bitmap.PixelFormat == PixelFormat.Format32bppArgb ? 4 : 3;
+            int stride = data.Stride;
 
-            ApplyThreshold(pixelData, bytesQtt, bytesPerPixel);
+            ApplyThreshold(pixelData, bitmap.Width, bitmap.Height, stride, bytesPerPixel);
 
             data = bitmap.LockBits(rect, ImageLockMode.ReadWrite, bitmap.PixelFormat);
             pointer = data.Scan0;
@@ -67,18 +68,23 @@ namespace DifferenceOfGaussians.Lib
             return output;
         }
 
-        private void ApplyThreshold(byte[] pixelData, int length, int bytesPerPixel)
+        private void ApplyThreshold(byte[] pixelData, int width, int height, int stride, int bytesPerPixel)
         {
-            for (int i = 0; i < length; i += bytesPerPixel)
+            for (int y = 0; y < height; y++)
             {
-                // Use weighted grayscale conversion: 0.299*R + 0.587*G + 0.114*B
-                byte grayscaleValue = (byte)((pixelData[i] * 0.299 + pixelData[i + 1] * 0.587 + pixelData[i + 2] * 0.114) / 255 * 255);
-                byte thresholded = ApplyTanhThreshold(grayscaleValue);
+                for (int x = 0; x < width; x++)
+                {
+                    int index = y * stride + x * bytesPerPixel;
 
-                pixelData[i] = thresholded;         // B
-                pixelData[i + 1] = thresholded;     // G
-                pixelData[i + 2] = thresholded;     // R
-                // pixelData[i + 3] (alpha) stays unchanged for 4-byte formats
+                    // Use weighted grayscale conversion: 0.299*R + 0.587*G + 0.114*B
+                    byte grayscaleValue = (byte)((pixelData[index] * 0.299 + pixelData[index + 1] * 0.587 + pixelData[index + 2] * 0.114) / 255 * 255);
+                    byte thresholded = ApplyTanhThreshold(grayscaleValue);
+
+                    pixelData[index] = thresholded;         // B
+                    pixelData[index + 1] = thresholded;     // G
+                    pixelData[index + 2] = thresholded;     // R
+                    // pixelData[index + 3] (alpha) stays unchanged for 4-byte formats
+                }
             }
         }
 
@@ -91,7 +97,7 @@ namespace DifferenceOfGaussians.Lib
 
             double u = pixelValue;
             double e = thresholdValue;
-            double result = 1 + Math.Tanh(phi + (u - e));
+            double result = 1 + Math.Tanh(phi * (u - e));
 
             // Scale result to 0-255 range
             // tanh output is in range [-1, 1], so 1 + tanh is in range [0, 2]
