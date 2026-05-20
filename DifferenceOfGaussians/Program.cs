@@ -17,82 +17,71 @@ namespace DifferenceOfGaussians
             var settings = new FilterSettings();
             configuration.Bind(settings);
 
-            Console.WriteLine("What do you want to do?\nq: quit\ns: select image to apply fiter");
-
-            string? input = Console.ReadLine();
-            while (input != "s" && input != "q")
+            while (true)
             {
-                input = Console.ReadLine();
-            }
+                Console.WriteLine("Please enter the absolute path to your image or \'q\' to exit");
 
-            if (input == "s")
-            {
-                while (true)
+                var targetPath = Console.ReadLine();
+
+                if (string.IsNullOrWhiteSpace(targetPath))
                 {
-                    Console.WriteLine("Please enter the absolute path to your image");
+                    continue;
+                }
+                else if (targetPath == "q")
+                {
+                    break;
+                }
 
-                    var targetPath = Console.ReadLine();
+                var file = new FileInfo(targetPath);
 
-                    if (string.IsNullOrWhiteSpace(targetPath))
+                try
+                {
+                    var fs = file.Open(FileMode.Open);
+                    fs.Close();
+
+                    // Apply Extended Difference of Gaussians with settings from appsettings.json
+                    var dog = new DoG(
+                        settings.DifferenceOfGaussians.StandardDeviation1,
+                        settings.DifferenceOfGaussians.StandardDeviation2,
+                        settings.DifferenceOfGaussians.KernelRadius,
+                        t: settings.DifferenceOfGaussians.ExtendedDoGParameter
+                    );
+                    using var dogResult = dog.Apply(file);
+
+                    // Save DoG result to temporary file
+                    string tempFile = file.FullName.Replace(".", "_temp.");
+                    using (FileStream tempOutput = new FileStream(tempFile, FileMode.OpenOrCreate))
                     {
-                        continue;
-                    }
-                    else if (targetPath == "q")
-                    {
-                        break;
+                        dogResult.Position = 0;
+                        dogResult.CopyTo(tempOutput);
                     }
 
-                    var file = new FileInfo(targetPath);
+                    // Apply thresholding with settings from appsettings.json
+                    var threshold = new Threshold(settings.Threshold.ThresholdValue, settings.Threshold.Phi);
+                    using var thresholdResult = threshold.Apply(new FileInfo(tempFile));
 
-                    try
-                    {
-                        var fs = file.Open(FileMode.Open);
-                        fs.Close();
+                    // Save final thresholded result
+                    FileStream output = new FileStream(file.FullName.Replace(".", "_dog."), FileMode.OpenOrCreate);
+                    thresholdResult.Position = 0;
+                    thresholdResult.CopyTo(output);
+                    output.Close();
 
-                        // Apply Extended Difference of Gaussians with settings from appsettings.json
-                        var dog = new DoG(
-                            settings.DifferenceOfGaussians.StandardDeviation1,
-                            settings.DifferenceOfGaussians.StandardDeviation2,
-                            settings.DifferenceOfGaussians.KernelRadius,
-                            t: settings.DifferenceOfGaussians.ExtendedDoGParameter
-                        );
-                        using var dogResult = dog.Apply(file);
+                    // Clean up temporary file
+                    File.Delete(tempFile);
 
-                        // Save DoG result to temporary file
-                        string tempFile = file.FullName.Replace(".", "_temp.");
-                        using (FileStream tempOutput = new FileStream(tempFile, FileMode.OpenOrCreate))
-                        {
-                            dogResult.Position = 0;
-                            dogResult.CopyTo(tempOutput);
-                        }
+                    Console.WriteLine("Done!");
 
-                        // Apply thresholding with settings from appsettings.json
-                        var threshold = new Threshold(settings.Threshold.ThresholdValue, settings.Threshold.Phi);
-                        using var thresholdResult = threshold.Apply(new FileInfo(tempFile));
-
-                        // Save final thresholded result
-                        FileStream output = new FileStream(file.FullName.Replace(".", "_dog."), FileMode.OpenOrCreate);
-                        thresholdResult.Position = 0;
-                        thresholdResult.CopyTo(output);
-                        output.Close();
-
-                        // Clean up temporary file
-                        File.Delete(tempFile);
-
-                        Console.WriteLine("Done!");
-
-                        break;
-                    }
-                    catch (FileNotFoundException)
-                    {
-                        Console.WriteLine($"File {targetPath} not found");
-                        continue;
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"An unexpected error occurred: {ex}");
-                        continue;
-                    }
+                    break;
+                }
+                catch (FileNotFoundException)
+                {
+                    Console.WriteLine($"File {targetPath} not found");
+                    continue;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"An unexpected error occurred: {ex}");
+                    continue;
                 }
             }
         }
