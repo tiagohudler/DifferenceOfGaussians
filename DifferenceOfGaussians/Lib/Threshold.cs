@@ -1,3 +1,4 @@
+using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 
@@ -5,31 +6,25 @@ namespace DifferenceOfGaussians.Lib
 {
     public class Threshold
     {
-        private int thresholdValue;
-        private double phi;
+        private readonly double thresholdValue;
+        private readonly double phi;
 
         /// <summary>
-        /// Creates a threshold filter with hyperbolic tangent function.
+        /// Creates an XDoG threshold filter.
+        /// thresholdValue (epsilon) expected in range [0,1].
+        /// phi controls edge sharpness.
         /// </summary>
-        /// <param name="thresholdValue">Threshold value (e). Range: 0-255</param>
-        public Threshold(int thresholdValue)
+        public Threshold(double thresholdValue, double phi = 10.0)
         {
-            if (thresholdValue < 0 || thresholdValue > 255)
-                throw new ArgumentOutOfRangeException(nameof(thresholdValue), "Threshold value must be between 0 and 255");
+            if (thresholdValue < 0.0 || thresholdValue > 1.0)
+                throw new ArgumentOutOfRangeException(
+                    nameof(thresholdValue),
+                    "Threshold value must be between 0 and 1.");
 
-            this.thresholdValue = thresholdValue;
-            this.phi = 0;
-        }
-
-        /// <summary>
-        /// Creates a threshold filter with hyperbolic tangent function.
-        /// </summary>
-        /// <param name="thresholdValue">Threshold value (e). Range: 0-255</param>
-        /// <param name="phi">Parameter for the tanh function smoothness</param>
-        public Threshold(int thresholdValue, double phi)
-        {
-            if (thresholdValue < 0 || thresholdValue > 255)
-                throw new ArgumentOutOfRangeException(nameof(thresholdValue), "Threshold value must be between 0 and 255");
+            if (phi <= 0)
+                throw new ArgumentOutOfRangeException(
+                    nameof(phi),
+                    "Phi must be greater than zero.");
 
             this.thresholdValue = thresholdValue;
             this.phi = phi;
@@ -37,38 +32,59 @@ namespace DifferenceOfGaussians.Lib
 
         public Stream Apply(FileInfo image)
         {
-            Bitmap bitmap = new Bitmap(image.FullName);
+            using Bitmap bitmap = new Bitmap(image.FullName);
 
             Rectangle rect = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
-            BitmapData data = bitmap.LockBits(rect, ImageLockMode.ReadWrite, bitmap.PixelFormat);
 
-            IntPtr pointer = data.Scan0;
-            int bytesQtt = Math.Abs(data.Stride) * bitmap.Height;
+            BitmapData data = bitmap.LockBits(
+                rect,
+                ImageLockMode.ReadWrite,
+                bitmap.PixelFormat);
+
+            int stride = data.Stride;
+            int bytesPerPixel =
+                bitmap.PixelFormat == PixelFormat.Format32bppArgb ? 4 : 3;
+
+            int bytesQtt = Math.Abs(stride) * bitmap.Height;
+
             byte[] pixelData = new byte[bytesQtt];
 
-            System.Runtime.InteropServices.Marshal.Copy(pointer, pixelData, 0, bytesQtt);
+            System.Runtime.InteropServices.Marshal.Copy(
+                data.Scan0,
+                pixelData,
+                0,
+                bytesQtt);
 
-            bitmap.UnlockBits(data);
+            ApplyThreshold(
+                pixelData,
+                bitmap.Width,
+                bitmap.Height,
+                stride,
+                bytesPerPixel);
 
-            int bytesPerPixel = bitmap.PixelFormat == PixelFormat.Format32bppArgb ? 4 : 3;
-            int stride = data.Stride;
+            System.Runtime.InteropServices.Marshal.Copy(
+                pixelData,
+                0,
+                data.Scan0,
+                bytesQtt);
 
-            ApplyThreshold(pixelData, bitmap.Width, bitmap.Height, stride, bytesPerPixel);
-
-            data = bitmap.LockBits(rect, ImageLockMode.ReadWrite, bitmap.PixelFormat);
-            pointer = data.Scan0;
-            System.Runtime.InteropServices.Marshal.Copy(pixelData, 0, pointer, bytesQtt);
             bitmap.UnlockBits(data);
 
             MemoryStream output = new MemoryStream();
+
             bitmap.Save(output, ImageFormat.Png);
+
             output.Position = 0;
-            bitmap.Dispose();
 
             return output;
         }
 
-        private void ApplyThreshold(byte[] pixelData, int width, int height, int stride, int bytesPerPixel)
+        private void ApplyThreshold(
+            byte[] pixelData,
+            int width,
+            int height,
+            int stride,
+            int bytesPerPixel)
         {
             for (int y = 0; y < height; y++)
             {
@@ -76,34 +92,51 @@ namespace DifferenceOfGaussians.Lib
                 {
                     int index = y * stride + x * bytesPerPixel;
 
-                    // Use weighted grayscale conversion: 0.299*B + 0.587*G + 0.114*R
-                    byte grayscaleValue = (byte)((pixelData[index] * 0.114 + pixelData[index + 1] * 0.587 + pixelData[index + 2] * 0.299));
-                    byte thresholded = ApplyTanhThreshold(grayscaleValue);
+                    byte blue = pixelData[index];
+                    byte green = pixelData[index + 1];
+                    byte red = pixelData[index + 2];
 
-                    pixelData[index] = thresholded;         // B
-                    pixelData[index + 1] = thresholded;     // G
-                    pixelData[index + 2] = thresholded;     // R
-                    // pixelData[index + 3] (alpha) stays unchanged for 4-byte formats
+                    // Correct System.Drawing order: BGR
+                    double grayscale =
+                          0.114 * blue
+                        + 0.587 * green
+                        + 0.299 * red;
+
+                    // Normalize to [0,1]
+                    double u = grayscale / 255.0;
+
+                    byte thresholded =
+                        ApplyXDoGThreshold(u);
+
+                    pixelData[index] = thresholded;
+                    pixelData[index + 1] = thresholded;
+                    pixelData[index + 2] = thresholded;
+
+                    // Preserve alpha channel automatically
                 }
             }
         }
 
-        private byte ApplyTanhThreshold(byte pixelValue)
+        private byte ApplyXDoGThreshold(double u)
         {
-            if (pixelValue >= thresholdValue)
+            double result;
+
+            // Standard XDoG thresholding
+            if (u >= thresholdValue)
             {
-                return 255;
+                result = 1.0;
+            }
+            else
+            {
+                result =
+                    1.0 +
+                    Math.Tanh(
+                        phi * (u - thresholdValue));
             }
 
-            double u = pixelValue;
-            double e = thresholdValue;
-            double result = 1 + Math.Tanh(phi * (u - e));
+            result = Math.Clamp(result, 0.0, 1.0);
 
-            // Scale result to 0-255 range
-            // tanh output is in range [-1, 1], so 1 + tanh is in range [0, 2]
-            // We need to scale this to [0, 255]
-            byte output = (byte)Math.Clamp(result * 127.5, 0, 255);
-            return output;
+            return (byte)(result * 255.0);
         }
     }
 }
