@@ -27,14 +27,19 @@ namespace DifferenceOfGaussians
 
             if (input == "s")
             {
-                Console.WriteLine("Please enter the absolute path to your image");
                 while (true)
                 {
+                    Console.WriteLine("Please enter the absolute path to your image");
+
                     var targetPath = Console.ReadLine();
 
-                    if (targetPath == null)
+                    if (string.IsNullOrWhiteSpace(targetPath))
                     {
                         continue;
+                    }
+                    else if (targetPath == "q")
+                    {
+                        break;
                     }
 
                     var file = new FileInfo(targetPath);
