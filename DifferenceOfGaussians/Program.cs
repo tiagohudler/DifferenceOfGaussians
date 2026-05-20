@@ -41,8 +41,8 @@ namespace DifferenceOfGaussians
 
                     // Apply Extended Difference of Gaussians with settings from appsettings.json
                     var dog = new DoG(
-                        settings.DifferenceOfGaussians.StandardDeviation1,
-                        settings.DifferenceOfGaussians.StandardDeviation2,
+                        settings.DifferenceOfGaussians.BaseStandardDeviation,
+                        settings.DifferenceOfGaussians.BaseStandardDeviation * 1.6,
                         t: settings.DifferenceOfGaussians.ExtendedDoGParameter
                     );
                     using var dogResult = dog.Apply(file);

@@ -8,8 +8,7 @@ namespace DifferenceOfGaussians.Lib
 
     public class DifferenceOfGaussiansSettings
     {
-        public double StandardDeviation1 { get; set; } = 15;
-        public double StandardDeviation2 { get; set; } = 3;
+        public double BaseStandardDeviation { get; set; } = 15;
         public double ExtendedDoGParameter { get; set; } = 15;
     }
 
