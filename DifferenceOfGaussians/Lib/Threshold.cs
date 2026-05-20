@@ -6,17 +6,33 @@ namespace DifferenceOfGaussians.Lib
     public class Threshold
     {
         private int thresholdValue;
+        private double phi;
 
         /// <summary>
-        /// Creates a threshold filter.
+        /// Creates a threshold filter with hyperbolic tangent function.
         /// </summary>
-        /// <param name="thresholdValue">Pixel values above this threshold become white (255), below become black (0). Range: 0-255</param>
+        /// <param name="thresholdValue">Threshold value (e). Range: 0-255</param>
         public Threshold(int thresholdValue)
         {
             if (thresholdValue < 0 || thresholdValue > 255)
                 throw new ArgumentOutOfRangeException(nameof(thresholdValue), "Threshold value must be between 0 and 255");
 
             this.thresholdValue = thresholdValue;
+            this.phi = 0;
+        }
+
+        /// <summary>
+        /// Creates a threshold filter with hyperbolic tangent function.
+        /// </summary>
+        /// <param name="thresholdValue">Threshold value (e). Range: 0-255</param>
+        /// <param name="phi">Parameter for the tanh function smoothness</param>
+        public Threshold(int thresholdValue, double phi)
+        {
+            if (thresholdValue < 0 || thresholdValue > 255)
+                throw new ArgumentOutOfRangeException(nameof(thresholdValue), "Threshold value must be between 0 and 255");
+
+            this.thresholdValue = thresholdValue;
+            this.phi = phi;
         }
 
         public Stream Apply(FileInfo image)
@@ -62,7 +78,7 @@ namespace DifferenceOfGaussians.Lib
                     // ARGB format: skip alpha, process RGB
                     // Use weighted grayscale conversion: 0.299*R + 0.587*G + 0.114*B
                     grayscaleValue = (byte)((pixelData[i] * 0.299 + pixelData[i + 1] * 0.587 + pixelData[i + 2] * 0.114) / 255 * 255);
-                    byte thresholded = grayscaleValue > thresholdValue ? (byte)255 : (byte)0;
+                    byte thresholded = ApplyTanhThreshold(grayscaleValue);
 
                     pixelData[i] = thresholded;         // B
                     pixelData[i + 1] = thresholded;     // G
@@ -74,13 +90,31 @@ namespace DifferenceOfGaussians.Lib
                     // RGB format (3 bytes per pixel)
                     // Use weighted grayscale conversion: 0.299*R + 0.587*G + 0.114*B
                     grayscaleValue = (byte)((pixelData[i] * 0.299 + pixelData[i + 1] * 0.587 + pixelData[i + 2] * 0.114) / 255 * 255);
-                    byte thresholded = grayscaleValue > thresholdValue ? (byte)255 : (byte)0;
+                    byte thresholded = ApplyTanhThreshold(grayscaleValue);
 
                     pixelData[i] = thresholded;         // B
                     pixelData[i + 1] = thresholded;     // G
                     pixelData[i + 2] = thresholded;     // R
                 }
             }
+        }
+
+        private byte ApplyTanhThreshold(byte pixelValue)
+        {
+            if (pixelValue >= thresholdValue)
+            {
+                return 255;
+            }
+
+            double u = pixelValue;
+            double e = thresholdValue;
+            double result = 1 + Math.Tanh(phi + (u - e));
+
+            // Scale result to 0-255 range
+            // tanh output is in range [-1, 1], so 1 + tanh is in range [0, 2]
+            // We need to scale this to [0, 255]
+            byte output = (byte)Math.Clamp(result * 127.5, 0, 255);
+            return output;
         }
     }
 }

@@ -17,5 +17,6 @@ namespace DifferenceOfGaussians.Lib
     public class ThresholdSettings
     {
         public int ThresholdValue { get; set; } = 128;
+        public double Phi { get; set; } = 1.0;
     }
 }

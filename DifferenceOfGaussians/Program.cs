@@ -62,7 +62,7 @@ namespace DifferenceOfGaussians
                         }
 
                         // Apply thresholding with settings from appsettings.json
-                        var threshold = new Threshold(settings.Threshold.ThresholdValue);
+                        var threshold = new Threshold(settings.Threshold.ThresholdValue, settings.Threshold.Phi);
                         using var thresholdResult = threshold.Apply(new FileInfo(tempFile));
 
                         // Save final thresholded result
