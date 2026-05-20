@@ -8,6 +8,7 @@ namespace DifferenceOfGaussians.Lib
     {
         private GaussianBlur blur1;
         private GaussianBlur blur2;
+        private double t;
 
         /// <summary>
         /// Creates a Difference of Gaussians filter.
@@ -15,10 +16,12 @@ namespace DifferenceOfGaussians.Lib
         /// <param name="standardDeviation1">Standard deviation for the first (larger) Gaussian blur</param>
         /// <param name="standardDeviation2">Standard deviation for the second (smaller) Gaussian blur</param>
         /// <param name="kernelRadius">Radius of the Gaussian kernel</param>
-        public DifferenceOfGaussians(double standardDeviation1, double standardDeviation2, int kernelRadius)
+        /// <param name="t">Weight parameter for extended DoG. First blur is multiplied by (1+t), second by t</param>
+        public DifferenceOfGaussians(double standardDeviation1, double standardDeviation2, int kernelRadius, double t)
         {
             blur1 = new GaussianBlur(standardDeviation1, kernelRadius);
             blur2 = new GaussianBlur(standardDeviation2, kernelRadius);
+            this.t = t;
         }
 
         public Stream Apply(FileInfo image)
@@ -62,6 +65,8 @@ namespace DifferenceOfGaussians.Lib
         private byte[] ComputeDifference(byte[] blurred1, byte[] blurred2, int length, int bytesPerPixel)
         {
             byte[] result = new byte[length];
+            double weight1 = 1 + t;
+            double weight2 = t;
 
             for (int i = 0; i < length; i++)
             {
@@ -72,10 +77,12 @@ namespace DifferenceOfGaussians.Lib
                     continue;
                 }
 
-                // Compute absolute difference and center around 128
-                int diff = (int)blurred1[i] - (int)blurred2[i];
-                int value = 128 + (diff / 2);
-                result[i] = (byte)Math.Clamp(value, 0, 255);
+                // Extended DoG: (1+t)*blur1 - t*blur2
+                double weightedBlur1 = blurred1[i] * weight1;
+                double weightedBlur2 = blurred2[i] * weight2;
+                double diff = weightedBlur1 - weightedBlur2;
+                int value = (int)Math.Clamp(diff, 0, 255);
+                result[i] = (byte)value;
             }
 
             return result;

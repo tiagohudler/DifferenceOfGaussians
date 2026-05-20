@@ -34,8 +34,7 @@ namespace DifferenceOfGaussians
                         var fs = file.Open(FileMode.Open);
                         fs.Close();
 
-                        // Apply Difference of Gaussians
-                        var dog = new DoG(20, 4, 7);
+                        var dog = new DoG(20, 4, 7, t: 0.5);
                         using var dogResult = dog.Apply(file);
 
                         // Save DoG result to temporary file
