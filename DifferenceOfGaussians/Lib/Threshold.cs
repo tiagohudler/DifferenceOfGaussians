@@ -71,31 +71,14 @@ namespace DifferenceOfGaussians.Lib
         {
             for (int i = 0; i < length; i += bytesPerPixel)
             {
-                byte grayscaleValue;
+                // Use weighted grayscale conversion: 0.299*R + 0.587*G + 0.114*B
+                byte grayscaleValue = (byte)((pixelData[i] * 0.299 + pixelData[i + 1] * 0.587 + pixelData[i + 2] * 0.114) / 255 * 255);
+                byte thresholded = ApplyTanhThreshold(grayscaleValue);
 
-                if (bytesPerPixel == 4)
-                {
-                    // ARGB format: skip alpha, process RGB
-                    // Use weighted grayscale conversion: 0.299*R + 0.587*G + 0.114*B
-                    grayscaleValue = (byte)((pixelData[i] * 0.299 + pixelData[i + 1] * 0.587 + pixelData[i + 2] * 0.114) / 255 * 255);
-                    byte thresholded = ApplyTanhThreshold(grayscaleValue);
-
-                    pixelData[i] = thresholded;         // B
-                    pixelData[i + 1] = thresholded;     // G
-                    pixelData[i + 2] = thresholded;     // R
-                    // pixelData[i + 3] stays as alpha
-                }
-                else
-                {
-                    // RGB format (3 bytes per pixel)
-                    // Use weighted grayscale conversion: 0.299*R + 0.587*G + 0.114*B
-                    grayscaleValue = (byte)((pixelData[i] * 0.299 + pixelData[i + 1] * 0.587 + pixelData[i + 2] * 0.114) / 255 * 255);
-                    byte thresholded = ApplyTanhThreshold(grayscaleValue);
-
-                    pixelData[i] = thresholded;         // B
-                    pixelData[i + 1] = thresholded;     // G
-                    pixelData[i + 2] = thresholded;     // R
-                }
+                pixelData[i] = thresholded;         // B
+                pixelData[i + 1] = thresholded;     // G
+                pixelData[i + 2] = thresholded;     // R
+                // pixelData[i + 3] (alpha) stays unchanged for 4-byte formats
             }
         }
 
