@@ -43,7 +43,6 @@ namespace DifferenceOfGaussians
                     var dog = new DoG(
                         settings.DifferenceOfGaussians.StandardDeviation1,
                         settings.DifferenceOfGaussians.StandardDeviation2,
-                        settings.DifferenceOfGaussians.KernelRadius,
                         t: settings.DifferenceOfGaussians.ExtendedDoGParameter
                     );
                     using var dogResult = dog.Apply(file);

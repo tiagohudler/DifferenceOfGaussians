@@ -15,12 +15,14 @@ namespace DifferenceOfGaussians.Lib
         /// </summary>
         /// <param name="standardDeviation1">Standard deviation for the first (larger) Gaussian blur</param>
         /// <param name="standardDeviation2">Standard deviation for the second (smaller) Gaussian blur</param>
-        /// <param name="kernelRadius">Radius of the Gaussian kernel</param>
         /// <param name="t">Weight parameter for extended DoG. First blur is multiplied by (1+t), second by t</param>
-        public DifferenceOfGaussians(double standardDeviation1, double standardDeviation2, int kernelRadius, double t)
+        public DifferenceOfGaussians(double standardDeviation1, double standardDeviation2, double t)
         {
-            blur1 = new GaussianBlur(standardDeviation1, kernelRadius);
-            blur2 = new GaussianBlur(standardDeviation2, kernelRadius);
+            int radius1 = Math.Max(1, (int)Math.Ceiling(3 * standardDeviation1));
+            int radius2 = Math.Max(1, (int)Math.Ceiling(3 * standardDeviation2));
+
+            blur1 = new GaussianBlur(standardDeviation1, radius1);
+            blur2 = new GaussianBlur(standardDeviation2, radius2);
             this.t = t;
         }
 

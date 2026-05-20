@@ -8,10 +8,9 @@ namespace DifferenceOfGaussians.Lib
 
     public class DifferenceOfGaussiansSettings
     {
-        public double StandardDeviation1 { get; set; } = 20;
-        public double StandardDeviation2 { get; set; } = 4;
-        public int KernelRadius { get; set; } = 7;
-        public double ExtendedDoGParameter { get; set; } = 0.5;
+        public double StandardDeviation1 { get; set; } = 15;
+        public double StandardDeviation2 { get; set; } = 3;
+        public double ExtendedDoGParameter { get; set; } = 15;
     }
 
     public class ThresholdSettings

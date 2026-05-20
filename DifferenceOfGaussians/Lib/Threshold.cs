@@ -76,8 +76,8 @@ namespace DifferenceOfGaussians.Lib
                 {
                     int index = y * stride + x * bytesPerPixel;
 
-                    // Use weighted grayscale conversion: 0.299*R + 0.587*G + 0.114*B
-                    byte grayscaleValue = (byte)((pixelData[index] * 0.299 + pixelData[index + 1] * 0.587 + pixelData[index + 2] * 0.114) / 255 * 255);
+                    // Use weighted grayscale conversion: 0.299*B + 0.587*G + 0.114*R
+                    byte grayscaleValue = (byte)((pixelData[index] * 0.114 + pixelData[index + 1] * 0.587 + pixelData[index + 2] * 0.299));
                     byte thresholded = ApplyTanhThreshold(grayscaleValue);
 
                     pixelData[index] = thresholded;         // B
