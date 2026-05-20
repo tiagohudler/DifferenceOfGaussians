@@ -1,5 +1,6 @@
 ﻿using DifferenceOfGaussians.Lib;
 using DoG = DifferenceOfGaussians.Lib.DifferenceOfGaussians;
+using Microsoft.Extensions.Configuration;
 
 namespace DifferenceOfGaussians
 {
@@ -7,6 +8,15 @@ namespace DifferenceOfGaussians
     {
         static void Main(string[] args)
         {
+            // Load configuration from appsettings.json
+            var configuration = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                .Build();
+
+            var settings = new FilterSettings();
+            configuration.Bind(settings);
+
             Console.WriteLine("What do you want to do?\nq: quit\ns: select image to apply fiter");
 
             string? input = Console.ReadLine();
@@ -34,7 +44,13 @@ namespace DifferenceOfGaussians
                         var fs = file.Open(FileMode.Open);
                         fs.Close();
 
-                        var dog = new DoG(20, 4, 7, t: 0.5);
+                        // Apply Extended Difference of Gaussians with settings from appsettings.json
+                        var dog = new DoG(
+                            settings.DifferenceOfGaussians.StandardDeviation1,
+                            settings.DifferenceOfGaussians.StandardDeviation2,
+                            settings.DifferenceOfGaussians.KernelRadius,
+                            t: settings.DifferenceOfGaussians.ExtendedDoGParameter
+                        );
                         using var dogResult = dog.Apply(file);
 
                         // Save DoG result to temporary file
@@ -45,8 +61,8 @@ namespace DifferenceOfGaussians
                             dogResult.CopyTo(tempOutput);
                         }
 
-                        // Apply thresholding to create binary image (black background, white edges)
-                        var threshold = new Threshold(128);
+                        // Apply thresholding with settings from appsettings.json
+                        var threshold = new Threshold(settings.Threshold.ThresholdValue);
                         using var thresholdResult = threshold.Apply(new FileInfo(tempFile));
 
                         // Save final thresholded result
