@@ -46,7 +46,7 @@ namespace DifferenceOfGaussians
                         {
                             var l = crosshatchSettings.Layers[i];
                             Console.WriteLine(
-                                $"  hatch_{i}.png  σ={l.Sigma}  ε={l.Threshold}");
+                                $"  hatch {i}  σ={l.Sigma}  ε={l.Threshold}");
                         }
 
                         // Resolve assets folder relative to the working directory
