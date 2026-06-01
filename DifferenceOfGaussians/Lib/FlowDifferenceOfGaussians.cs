@@ -133,8 +133,8 @@ namespace DifferenceOfGaussians.Lib
 
                         float sample = SampleBilinear(gray, sx, sy, width, height);
 
-                        double w1 = Gauss(s, sigmaE);
-                        double w2 = Gauss(s, sigmaE2);
+                        double w1 = MathHelper.Gaussian(s, sigmaE);
+                        double w2 = MathHelper.Gaussian(s, sigmaE2);
 
                         sum1  += sample * w1;  w1sum += w1;
                         sum2  += sample * w2;  w2sum += w2;
@@ -187,7 +187,7 @@ namespace DifferenceOfGaussians.Lib
                             if (dir == -1 && s == 0) continue;
 
                             float sample = SampleBilinear(dog, cx, cy, width, height);
-                            double w     = Gauss(s, sigmaM);
+                            double w     = MathHelper.Gaussian(s, sigmaM);
 
                             acc  += sample * w;
                             wsum += w;
@@ -308,8 +308,5 @@ namespace DifferenceOfGaussians.Lib
 
             return mask;
         }
-
-        private static double Gauss(double x, double sigma)
-            => Math.Exp(-(x * x) / (2.0 * sigma * sigma));
     }
 }

@@ -1,5 +1,4 @@
 using DifferenceOfGaussians.Lib;
-using DoG = DifferenceOfGaussians.Lib.DifferenceOfGaussians;
 using FDoG = DifferenceOfGaussians.Lib.FlowDifferenceOfGaussians;
 using Microsoft.Extensions.Configuration;
 
