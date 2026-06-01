@@ -17,8 +17,6 @@ namespace DifferenceOfGaussians
             var settings = new FilterSettings();
             configuration.Bind(settings);
 
-            Console.WriteLine($"Mode: {settings.Mode}");
-
             while (true)
             {
                 Console.WriteLine("Please enter the absolute path to your image or 'q' to exit");
@@ -34,105 +32,35 @@ namespace DifferenceOfGaussians
                     using var check = file.Open(FileMode.Open);
                     check.Close();
 
-                    // ── Cross-hatch mode ─────────────────────────────────────────────
-                    if (settings.Mode.Equals("crosshatch", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var crosshatchSettings = settings.CrossHatch;
+                    var crosshatchSettings = settings.CrossHatch;
 
+                    Console.WriteLine(
+                        $"Running CrossHatch  assets='{crosshatchSettings.AssetsFolder}'  layers={crosshatchSettings.Layers.Count}");
+
+                    for (int i = 0; i < crosshatchSettings.Layers.Count; i++)
+                    {
+                        var l = crosshatchSettings.Layers[i];
                         Console.WriteLine(
-                            $"Running CrossHatch  assets='{crosshatchSettings.AssetsFolder}'  layers={crosshatchSettings.Layers.Count}");
-
-                        for (int i = 0; i < crosshatchSettings.Layers.Count; i++)
-                        {
-                            var l = crosshatchSettings.Layers[i];
-                            Console.WriteLine(
-                                $"  hatch {i} ε={l.Threshold}");
-                        }
-
-                        // Resolve assets folder relative to the working directory
-                        string assetsPath = Path.IsPathRooted(crosshatchSettings.AssetsFolder)
-                            ? crosshatchSettings.AssetsFolder
-                            : Path.Combine(Directory.GetCurrentDirectory(), crosshatchSettings.AssetsFolder);
-
-                        var crossHatch = new CrossHatch(crosshatchSettings, assetsPath);
-                        using Stream crossHatchStream = crossHatch.Apply(file);
-
-                        string outputPath = Path.Combine(
-                            Path.GetDirectoryName(file.FullName)!,
-                            Path.GetFileNameWithoutExtension(file.Name) + "_crosshatch.png");
-
-                        using var output = new FileStream(outputPath, FileMode.Create);
-                        crossHatchStream.Position = 0;
-                        crossHatchStream.CopyTo(output);
-
-                        Console.WriteLine($"Done! → {outputPath}");
-                        break;
+                            $"  hatch {i} ε={l.Threshold}");
                     }
 
-                    // ── FDoG / XDoG modes (unchanged) ────────────────────────────────
-                    Stream dogStream;
+                    // Resolve assets folder relative to the working directory
+                    string assetsPath = Path.IsPathRooted(crosshatchSettings.AssetsFolder)
+                        ? crosshatchSettings.AssetsFolder
+                        : Path.Combine(Directory.GetCurrentDirectory(), crosshatchSettings.AssetsFolder);
 
-                    if (settings.Mode.Equals("flow", StringComparison.OrdinalIgnoreCase))
-                    {
-                        Console.WriteLine(
-                            $"Running FDoG  σc={settings.FlowDifferenceOfGaussians.SigmaC}  " +
-                            $"σe={settings.FlowDifferenceOfGaussians.SigmaE}  " +
-                            $"σm={settings.FlowDifferenceOfGaussians.SigmaM}  " +
-                            $"p={settings.FlowDifferenceOfGaussians.P}");
+                    var crossHatch = new CrossHatch(crosshatchSettings, assetsPath);
+                    using Stream crossHatchStream = crossHatch.Apply(file);
 
-                        var fdog = new FDoG(
-                            settings.FlowDifferenceOfGaussians.SigmaC,
-                            settings.FlowDifferenceOfGaussians.SigmaE,
-                            settings.FlowDifferenceOfGaussians.SigmaM,
-                            settings.FlowDifferenceOfGaussians.P);
-
-                        dogStream = fdog.Apply(file);
-                    }
-                    else
-                    {
-                        Console.WriteLine(
-                            $"Running XDoG  σ={settings.DifferenceOfGaussians.BaseStandardDeviation}  " +
-                            $"t={settings.DifferenceOfGaussians.ExtendedDoGParameter}");
-
-                        var dog = new DoG(
-                            settings.DifferenceOfGaussians.BaseStandardDeviation,
-                            settings.DifferenceOfGaussians.BaseStandardDeviation * 1.6,
-                            t: settings.DifferenceOfGaussians.ExtendedDoGParameter);
-
-                        dogStream = dog.Apply(file);
-                    }
-
-                    // Write to temp file so Threshold (which takes a FileInfo) can read it.
-                    string tempFile = Path.Combine(
-                        Path.GetTempPath(),
-                        Path.GetFileNameWithoutExtension(file.Name) + "_dog_tmp.png");
-
-                    using (var tempOut = new FileStream(tempFile, FileMode.Create))
-                    {
-                        dogStream.Position = 0;
-                        dogStream.CopyTo(tempOut);
-                    }
-                    dogStream.Dispose();
-
-                    // Threshold pass
-                    var threshold = new Threshold(
-                        settings.Threshold.ThresholdValue,
-                        settings.Threshold.Phi);
-
-                    using var thresholdResult = threshold.Apply(new FileInfo(tempFile));
-
-                    string suffix = settings.Mode.Equals("flow", StringComparison.OrdinalIgnoreCase) ? "_fdog" : "_dog";
-                    string outPath = Path.Combine(
+                    string outputPath = Path.Combine(
                         Path.GetDirectoryName(file.FullName)!,
-                        Path.GetFileNameWithoutExtension(file.Name) + suffix + ".png");
+                        Path.GetFileNameWithoutExtension(file.Name) + "_crosshatch.png");
 
-                    using var outputStream = new FileStream(outPath, FileMode.Create);
-                    thresholdResult.Position = 0;
-                    thresholdResult.CopyTo(outputStream);
+                    using var output = new FileStream(outputPath, FileMode.Create);
+                    crossHatchStream.Position = 0;
+                    crossHatchStream.CopyTo(output);
 
-                    File.Delete(tempFile);
-
-                    Console.WriteLine($"Done! → {outPath}");
+                    Console.WriteLine($"Done! → {outputPath}");
                     break;
                 }
                 catch (FileNotFoundException ex)

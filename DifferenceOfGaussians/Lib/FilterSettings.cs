@@ -2,24 +2,8 @@ namespace DifferenceOfGaussians.Lib
 {
     public class FilterSettings
     {
-        public DifferenceOfGaussiansSettings DifferenceOfGaussians { get; set; } = new();
         public FlowDifferenceOfGaussiansSettings FlowDifferenceOfGaussians { get; set; } = new();
-        public ThresholdSettings Threshold { get; set; } = new();
         public CrossHatchSettings CrossHatch { get; set; } = new();
-
-        /// <summary>
-        /// Selects which filter to run.
-        /// "standard"   — original isotropic XDoG.
-        /// "flow"        — flow-based FDoG (Sec. 2.6 of the paper).
-        /// "crosshatch"  — four-layer cross-hatch using hatch textures from Assets/.
-        /// </summary>
-        public string Mode { get; set; } = "crosshatch";
-    }
-
-    public class DifferenceOfGaussiansSettings
-    {
-        public double BaseStandardDeviation { get; set; } = 15;
-        public double ExtendedDoGParameter { get; set; } = 15;
     }
 
     /// <summary>
@@ -37,12 +21,6 @@ namespace DifferenceOfGaussians.Lib
         public double SigmaE { get; set; } = 1.4;
         public double SigmaM { get; set; } = 4.4;
         public double P { get; set; } = 20.0;
-    }
-
-    public class ThresholdSettings
-    {
-        public double ThresholdValue { get; set; } = 0.5;
-        public double Phi { get; set; } = 1.0;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -80,12 +58,12 @@ namespace DifferenceOfGaussians.Lib
         /// Path to the folder containing hatch_0.png … hatch_3.png.
         /// Relative paths are resolved from the working directory.
         /// </summary>
-        public string AssetsFolder { get; set; }
+        public string AssetsFolder { get; set; } = "Assets";
 
         /// <summary>
         /// Exactly four layers, one per hatch texture.
         /// Order must match the texture filenames (hatch_0 … hatch_3).
         /// </summary>
-        public List<CrossHatchLayerSettings> Layers { get; set; }
+        public List<CrossHatchLayerSettings> Layers { get; set; } = [];
     }
 }
