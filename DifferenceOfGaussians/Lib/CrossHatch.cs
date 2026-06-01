@@ -78,7 +78,19 @@ namespace DifferenceOfGaussians.Lib
             for (int li = 0; li < layerCount; li++)
             {
                 var layer = layers[li];
-                masks[li] = BuildMask(gray, width, height, layer.Sigma, layer.Threshold);
+                var fdog =
+                new FlowDifferenceOfGaussians(
+                    sigmaC: layer.SigmaC,
+                    sigmaE: layer.SigmaE,
+                    sigmaM: layer.SigmaM,
+                    p: layer.P);
+
+                masks[li] =
+                    fdog.ComputeMask(
+                        gray,
+                        width,
+                        height,
+                        layer.Threshold);
             }
 
             // ── Step 3: load hatch textures ────────────────────────────────
@@ -142,63 +154,6 @@ namespace DifferenceOfGaussians.Lib
             dst.Dispose();
             output.Position = 0;
             return output;
-        }
-
-        // ───────────────────────────────────────────────────────────────────
-        // Build a single mask: blur → threshold → invert
-        // ───────────────────────────────────────────────────────────────────
-        //
-        // mask[px] = 1  → bright area → no stroke
-        // mask[px] = 0  → dark area   → stroke shows through
-        //
-        // We use the same XDoG soft threshold as Threshold.cs (tanh gate):
-        //   if u >= epsilon:  1.0
-        //   else:             1 + tanh(phi * (u - epsilon))
-        // then clamp to [0,1].
-        // ───────────────────────────────────────────────────────────────────
-        private static float[] BuildMask(
-            float[] gray, int width, int height,
-            double sigma, double epsilon,
-            double phi = 10.0)
-        {
-            int n = width * height;
-
-            // Convert float gray [0,1] to byte array for GaussianBlur
-            int    stride     = width * 3;   // 24-bit pseudo-stride, no padding
-            byte[] grayBytes  = new byte[stride * height];
-
-            for (int y = 0; y < height; y++)
-                for (int x = 0; x < width; x++)
-                {
-                    byte v = (byte)Math.Clamp(gray[y * width + x] * 255f, 0f, 255f);
-                    int  i = y * stride + x * 3;
-                    grayBytes[i] = grayBytes[i + 1] = grayBytes[i + 2] = v;
-                }
-
-            int    radius  = Math.Max(1, (int)Math.Ceiling(3.0 * sigma));
-            var    blurrer = new GaussianBlur(sigma, radius);
-            byte[] blurred = blurrer.BlurPixelData(grayBytes, width, height, stride, 3);
-
-            float[] mask = new float[n];
-
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
-                {
-                    int    i = y * stride + x * 3;
-                    double u = blurred[i] / 255.0;   // [0,1]
-
-                    double t;
-                    if (u >= epsilon)
-                        t = 1.0;
-                    else
-                        t = 1.0 + Math.Tanh(phi * (u - epsilon));
-
-                    mask[y * width + x] = (float)Math.Clamp(t, 0.0, 1.0);
-                }
-            }
-
-            return mask;
         }
 
         // ───────────────────────────────────────────────────────────────────

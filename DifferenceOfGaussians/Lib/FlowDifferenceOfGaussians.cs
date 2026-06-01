@@ -248,6 +248,67 @@ namespace DifferenceOfGaussians.Lib
                  + (img[y1 * width + x0] * (1 - fx) + img[y1 * width + x1] * fx) *      fy;
         }
 
+        public float[] ComputeMask(
+            float[] gray,
+            int width,
+            int height,
+            double epsilon,
+            double phi = 10.0)
+        {
+            var (tx, ty) =
+                new StructureTensor(sigmaC)
+                .Compute(gray, width, height);
+
+            float[] dogRaw =
+                GradientAlignedDoG(
+                    gray,
+                    tx,
+                    ty,
+                    width,
+                    height);
+
+            float[] smoothed =
+                TangentAlignedSmooth(
+                    dogRaw,
+                    tx,
+                    ty,
+                    width,
+                    height);
+
+            int n = width * height;
+
+            float[] mask =
+                new float[n];
+
+            for (int i = 0; i < n; i++)
+            {
+                double u = smoothed[i];
+
+                double t;
+
+                if (u >= epsilon)
+                {
+                    t = 1.0;
+                }
+                else
+                {
+                    t =
+                        1.0
+                        + Math.Tanh(
+                            phi *
+                            (u - epsilon));
+                }
+
+                mask[i] =
+                    (float)Math.Clamp(
+                        t,
+                        0.0,
+                        1.0);
+            }
+
+            return mask;
+        }
+
         private static double Gauss(double x, double sigma)
             => Math.Exp(-(x * x) / (2.0 * sigma * sigma));
     }
