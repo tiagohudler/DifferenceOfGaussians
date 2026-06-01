@@ -1,5 +1,5 @@
 using DifferenceOfGaussians.Lib;
-using DoG  = DifferenceOfGaussians.Lib.DifferenceOfGaussians;
+using DoG = DifferenceOfGaussians.Lib.DifferenceOfGaussians;
 using FDoG = DifferenceOfGaussians.Lib.FlowDifferenceOfGaussians;
 using Microsoft.Extensions.Configuration;
 
@@ -34,6 +34,42 @@ namespace DifferenceOfGaussians
                     using var check = file.Open(FileMode.Open);
                     check.Close();
 
+                    // ── Cross-hatch mode ─────────────────────────────────────────────
+                    if (settings.Mode.Equals("crosshatch", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var crosshatchSettings = settings.CrossHatch;
+
+                        Console.WriteLine(
+                            $"Running CrossHatch  assets='{crosshatchSettings.AssetsFolder}'  layers={crosshatchSettings.Layers.Count}");
+
+                        for (int i = 0; i < crosshatchSettings.Layers.Count; i++)
+                        {
+                            var l = crosshatchSettings.Layers[i];
+                            Console.WriteLine(
+                                $"  hatch_{i}.png  σ={l.Sigma}  ε={l.Threshold}");
+                        }
+
+                        // Resolve assets folder relative to the working directory
+                        string assetsPath = Path.IsPathRooted(crosshatchSettings.AssetsFolder)
+                            ? crosshatchSettings.AssetsFolder
+                            : Path.Combine(Directory.GetCurrentDirectory(), crosshatchSettings.AssetsFolder);
+
+                        var crossHatch = new CrossHatch(crosshatchSettings, assetsPath);
+                        using Stream crossHatchStream = crossHatch.Apply(file);
+
+                        string outputPath = Path.Combine(
+                            Path.GetDirectoryName(file.FullName)!,
+                            Path.GetFileNameWithoutExtension(file.Name) + "_crosshatch.png");
+
+                        using var output = new FileStream(outputPath, FileMode.Create);
+                        crossHatchStream.Position = 0;
+                        crossHatchStream.CopyTo(output);
+
+                        Console.WriteLine($"Done! → {outputPath}");
+                        break;
+                    }
+
+                    // ── FDoG / XDoG modes (unchanged) ────────────────────────────────
                     Stream dogStream;
 
                     if (settings.Mode.Equals("flow", StringComparison.OrdinalIgnoreCase))
@@ -67,7 +103,6 @@ namespace DifferenceOfGaussians
                     }
 
                     // Write to temp file so Threshold (which takes a FileInfo) can read it.
-                    // PNG is lossless so the byte-level round-trip is exact.
                     string tempFile = Path.Combine(
                         Path.GetTempPath(),
                         Path.GetFileNameWithoutExtension(file.Name) + "_dog_tmp.png");
@@ -86,23 +121,23 @@ namespace DifferenceOfGaussians
 
                     using var thresholdResult = threshold.Apply(new FileInfo(tempFile));
 
-                    string suffix     = settings.Mode.Equals("flow", StringComparison.OrdinalIgnoreCase) ? "_fdog" : "_dog";
-                    string outputPath = Path.Combine(
+                    string suffix = settings.Mode.Equals("flow", StringComparison.OrdinalIgnoreCase) ? "_fdog" : "_dog";
+                    string outPath = Path.Combine(
                         Path.GetDirectoryName(file.FullName)!,
                         Path.GetFileNameWithoutExtension(file.Name) + suffix + ".png");
 
-                    using var output = new FileStream(outputPath, FileMode.Create);
+                    using var outputStream = new FileStream(outPath, FileMode.Create);
                     thresholdResult.Position = 0;
-                    thresholdResult.CopyTo(output);
+                    thresholdResult.CopyTo(outputStream);
 
                     File.Delete(tempFile);
 
-                    Console.WriteLine($"Done! → {outputPath}");
+                    Console.WriteLine($"Done! → {outPath}");
                     break;
                 }
-                catch (FileNotFoundException)
+                catch (FileNotFoundException ex)
                 {
-                    Console.WriteLine($"File '{targetPath}' not found.");
+                    Console.WriteLine($"File not found: {ex.Message}");
                 }
                 catch (Exception ex)
                 {
