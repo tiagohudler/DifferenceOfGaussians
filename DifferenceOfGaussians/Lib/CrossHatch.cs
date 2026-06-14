@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Reflection.Emit;
 
 namespace DifferenceOfGaussians.Lib
 {
@@ -31,13 +32,15 @@ namespace DifferenceOfGaussians.Lib
     /// </summary>
     public class CrossHatch
     {
-        private readonly CrossHatchSettings settings;
+        private readonly FilterSettings settings;
         private readonly string assetsFolder;
+        private readonly string outputFolder;
 
-        public CrossHatch(CrossHatchSettings settings, string assetsFolder)
+        public CrossHatch(FilterSettings settings, string assetsFolder, string outputFolder = @"F:\Pictures\Results")
         {
-            this.settings     = settings;
-            this.assetsFolder = assetsFolder;
+            this.settings      = settings;
+            this.assetsFolder  = assetsFolder;
+            this.outputFolder  = outputFolder;
         }
 
         // ───────────────────────────────────────────────────────────────────
@@ -46,6 +49,9 @@ namespace DifferenceOfGaussians.Lib
 
         public Stream Apply(FileInfo imageFile)
         {
+            // Create output folder if it doesn't exist
+            Directory.CreateDirectory(outputFolder);
+
             // ── Load source image ──────────────────────────────────────────
             using Bitmap src = new Bitmap(imageFile.FullName);
 
@@ -64,9 +70,10 @@ namespace DifferenceOfGaussians.Lib
 
             // ── Step 1: grayscale [0,1] ────────────────────────────────────
             float[] gray = ToGrayscale(pixels, width, height, stride, bpp);
+            SaveLayerToDisk(gray, width, height, "grayscale.png");
 
             // ── Steps 2: four blur → threshold masks ───────────────────────
-            var layers = settings.Layers;
+            var layers = settings.CrossHatch.Layers;
             if (layers == null || layers.Count == 0)
                 throw new InvalidOperationException("CrossHatch: no layers configured.");
 
@@ -75,22 +82,30 @@ namespace DifferenceOfGaussians.Lib
             // Each mask[i][px] ∈ [0,1]: 1 = white (no stroke), 0 = dark (stroke)
             float[][] masks = new float[layerCount][];
 
+            var fdogger =
+                new FlowDifferenceOfGaussians(
+                    sigmaC: settings.FlowDifferenceOfGaussians.SigmaC,
+                    sigmaE: settings.FlowDifferenceOfGaussians.SigmaE,
+                    sigmaM: settings.FlowDifferenceOfGaussians.SigmaM,
+                    p: settings.FlowDifferenceOfGaussians.P);
+
+            var fdog = fdogger.Apply(gray, width, height);
+
+            SaveLayerToDisk(fdog, width, height, $"smoothed_fdog.png");
+
             for (int li = 0; li < layerCount; li++)
             {
                 var layer = layers[li];
-                var fdog =
-                new FlowDifferenceOfGaussians(
-                    sigmaC: layer.SigmaC,
-                    sigmaE: layer.SigmaE,
-                    sigmaM: layer.SigmaM,
-                    p: layer.P);
 
                 masks[li] =
-                    fdog.ComputeMask(
+                    Threshold(
                         gray,
                         width,
                         height,
                         layer.Threshold);
+
+                // Save final mask
+                SaveLayerToDisk(masks[li], width, height, $"mask_{li:D2}_mask.png");
             }
 
             // ── Step 3: load hatch textures ────────────────────────────────
@@ -124,6 +139,9 @@ namespace DifferenceOfGaussians.Lib
 
                     result[px] *= composited;
                 }
+
+                // Save composited layer result to disk
+                SaveLayerToDisk(result, width, height, $"layer_{li:D2}_composited.png");
             }
 
             // ── Step 6: write output PNG ───────────────────────────────────
@@ -151,9 +169,45 @@ namespace DifferenceOfGaussians.Lib
 
             MemoryStream output = new MemoryStream();
             dst.Save(output, System.Drawing.Imaging.ImageFormat.Png);
+
+            // Save final result
+            dst.Save(Path.Combine(outputFolder, "final_result.png"), System.Drawing.Imaging.ImageFormat.Png);
+
             dst.Dispose();
             output.Position = 0;
             return output;
+        }
+
+        // ───────────────────────────────────────────────────────────────────
+        // Save a float array layer as a PNG image
+        // ───────────────────────────────────────────────────────────────────
+        private void SaveLayerToDisk(float[] layer, int width, int height, string filename)
+        {
+            Bitmap bitmap = new Bitmap(width, height, PixelFormat.Format24bppRgb);
+            Rectangle rect = new Rectangle(0, 0, width, height);
+            BitmapData data = bitmap.LockBits(rect, ImageLockMode.WriteOnly, bitmap.PixelFormat);
+
+            int stride = data.Stride;
+            byte[] pixels = new byte[Math.Abs(stride) * height];
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    byte v = (byte)Math.Clamp(layer[y * width + x] * 255.0f, 0f, 255f);
+                    int idx = y * stride + x * 3;
+                    pixels[idx]     = v;
+                    pixels[idx + 1] = v;
+                    pixels[idx + 2] = v;
+                }
+            }
+
+            System.Runtime.InteropServices.Marshal.Copy(pixels, 0, data.Scan0, pixels.Length);
+            bitmap.UnlockBits(data);
+
+            string filepath = Path.Combine(outputFolder, filename);
+            bitmap.Save(filepath, System.Drawing.Imaging.ImageFormat.Png);
+            bitmap.Dispose();
         }
 
         // ───────────────────────────────────────────────────────────────────
@@ -224,6 +278,42 @@ namespace DifferenceOfGaussians.Lib
                     gray[y * width + x] = 0.114f * b + 0.587f * g + 0.299f * r;
                 }
             return gray;
+        }
+
+        private static float[] Threshold(float[] input, int width, int height, double epsilon, double phi = 10.0)
+        {
+            int n = width * height;
+
+            float[] mask =
+                new float[n];
+
+            for (int i = 0; i < n; i++)
+            {
+                double u = input[i];
+
+                double t;
+
+                if (u >= epsilon)
+                {
+                    t = 1.0;
+                }
+                else
+                {
+                    t =
+                        1.0
+                        + Math.Tanh(
+                            phi *
+                            (u - epsilon));
+                }
+
+                mask[i] =
+                    (float)Math.Clamp(
+                        t,
+                        0.0,
+                        1.0);
+            }
+
+            return mask;
         }
     }
 }

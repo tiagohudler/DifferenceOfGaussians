@@ -48,7 +48,7 @@ namespace DifferenceOfGaussians
                         ? crosshatchSettings.AssetsFolder
                         : Path.Combine(Directory.GetCurrentDirectory(), crosshatchSettings.AssetsFolder);
 
-                    var crossHatch = new CrossHatch(crosshatchSettings, assetsPath);
+                    var crossHatch = new CrossHatch(settings, assetsPath);
                     using Stream crossHatchStream = crossHatch.Apply(file);
 
                     string outputPath = Path.Combine(

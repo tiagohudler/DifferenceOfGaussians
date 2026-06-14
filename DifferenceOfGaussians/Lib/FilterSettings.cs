@@ -44,11 +44,6 @@ namespace DifferenceOfGaussians.Lib
     /// </summary>
     public class CrossHatchLayerSettings
     {
-        public double SigmaC { get; set; }
-        public double SigmaE { get; set; }
-        public double SigmaM { get; set; }
-        public double P { get; set; }
-
         public double Threshold { get; set; }
     }
 

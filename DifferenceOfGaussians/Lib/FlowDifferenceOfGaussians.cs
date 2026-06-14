@@ -34,64 +34,34 @@ namespace DifferenceOfGaussians.Lib
             this.p      = p;
         }
 
-        public Stream Apply(FileInfo imageFile)
+        /// <summary>
+        /// Applies the FDoG to an array of grayscale values
+        /// </summary>
+        /// <param name="gray">The grayscale values</param>
+        /// <param name="width">Width of each row</param>
+        /// <param name="height">Number of rows</param>
+        /// <returns>The final processed values</returns>
+        public float[] Apply(float[] gray, int width, int height)
         {
-            using Bitmap src = new Bitmap(imageFile.FullName);
+            var (tx, ty) =
+                new StructureTensor(sigmaC)
+                .Compute(gray, width, height);
 
-            int width  = src.Width;
-            int height = src.Height;
+            float[] dogRaw =
+                GradientAlignedDoG(
+                    gray,
+                    tx,
+                    ty,
+                    width,
+                    height);
 
-            Rectangle  rect       = new Rectangle(0, 0, width, height);
-            BitmapData data       = src.LockBits(rect, ImageLockMode.ReadOnly, src.PixelFormat);
-            int        bpp        = src.PixelFormat == PixelFormat.Format32bppArgb ? 4 : 3;
-            int        stride     = data.Stride;
-            int        bytesTotal = Math.Abs(stride) * height;
-            byte[]     pixels     = new byte[bytesTotal];
-            System.Runtime.InteropServices.Marshal.Copy(data.Scan0, pixels, 0, bytesTotal);
-            src.UnlockBits(data);
-
-            // Step 1 — grayscale [0,1]
-            float[] gray = ToGrayscale(pixels, width, height, stride, bpp);
-
-            // Step 2 — Edge Tangent Flow
-            var (tx, ty) = new StructureTensor(sigmaC).Compute(gray, width, height);
-
-            // Step 3 — gradient-aligned 1-D DoG (raw, NOT clamped)
-            float[] dogRaw = GradientAlignedDoG(gray, tx, ty, width, height);
-
-            // Step 4 — tangent-aligned LIC smoothing
-            float[] smoothed = TangentAlignedSmooth(dogRaw, tx, ty, width, height);
-
-            // Step 5 — write back; map raw float to [0,255] byte via midpoint shift
-            // The DoG/XDoG response is centred around the blurred image value (~0.5 for
-            // a mid-grey image). We re-map so that 0.0 → 0, 1.0 → 255 directly; the
-            // Threshold class then applies its tanh gate in [0,1] space.
-            Bitmap    result    = new Bitmap(width, height, src.PixelFormat);
-            BitmapData dstData  = result.LockBits(rect, ImageLockMode.WriteOnly, src.PixelFormat);
-            int        dstStride = dstData.Stride;
-            byte[]     dstPixels = new byte[Math.Abs(dstStride) * height];
-
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
-                {
-                    byte v   = (byte)Math.Clamp(smoothed[y * width + x] * 255.0f, 0f, 255f);
-                    int  idx = y * dstStride + x * bpp;
-                    dstPixels[idx]     = v;
-                    dstPixels[idx + 1] = v;
-                    dstPixels[idx + 2] = v;
-                    if (bpp == 4) dstPixels[idx + 3] = pixels[y * stride + x * bpp + 3];
-                }
-            }
-
-            System.Runtime.InteropServices.Marshal.Copy(dstPixels, 0, dstData.Scan0, dstPixels.Length);
-            result.UnlockBits(dstData);
-
-            MemoryStream output = new MemoryStream();
-            result.Save(output, ImageFormat.Png);
-            result.Dispose();
-            output.Position = 0;
-            return output;
+            return
+                TangentAlignedSmooth(
+                    dogRaw,
+                    tx,
+                    ty,
+                    width,
+                    height);
         }
 
         // ---------------------------------------------------------------
@@ -213,26 +183,6 @@ namespace DifferenceOfGaussians.Lib
             return result;
         }
 
-        // ---------------------------------------------------------------
-        // Utilities
-        // ---------------------------------------------------------------
-
-        private static float[] ToGrayscale(
-            byte[] pixels, int width, int height, int stride, int bpp)
-        {
-            float[] gray = new float[width * height];
-            for (int y = 0; y < height; y++)
-                for (int x = 0; x < width; x++)
-                {
-                    int idx = y * stride + x * bpp;
-                    float b = pixels[idx]     / 255.0f;
-                    float g = pixels[idx + 1] / 255.0f;
-                    float r = pixels[idx + 2] / 255.0f;
-                    gray[y * width + x] = 0.114f * b + 0.587f * g + 0.299f * r;
-                }
-            return gray;
-        }
-
         private static float SampleBilinear(float[] img, float x, float y, int width, int height)
         {
             x = Math.Clamp(x, 0, width  - 1.001f);
@@ -246,67 +196,6 @@ namespace DifferenceOfGaussians.Lib
 
             return (img[y0 * width + x0] * (1 - fx) + img[y0 * width + x1] * fx) * (1 - fy)
                  + (img[y1 * width + x0] * (1 - fx) + img[y1 * width + x1] * fx) *      fy;
-        }
-
-        public float[] ComputeMask(
-            float[] gray,
-            int width,
-            int height,
-            double epsilon,
-            double phi = 10.0)
-        {
-            var (tx, ty) =
-                new StructureTensor(sigmaC)
-                .Compute(gray, width, height);
-
-            float[] dogRaw =
-                GradientAlignedDoG(
-                    gray,
-                    tx,
-                    ty,
-                    width,
-                    height);
-
-            float[] smoothed =
-                TangentAlignedSmooth(
-                    dogRaw,
-                    tx,
-                    ty,
-                    width,
-                    height);
-
-            int n = width * height;
-
-            float[] mask =
-                new float[n];
-
-            for (int i = 0; i < n; i++)
-            {
-                double u = smoothed[i];
-
-                double t;
-
-                if (u >= epsilon)
-                {
-                    t = 1.0;
-                }
-                else
-                {
-                    t =
-                        1.0
-                        + Math.Tanh(
-                            phi *
-                            (u - epsilon));
-                }
-
-                mask[i] =
-                    (float)Math.Clamp(
-                        t,
-                        0.0,
-                        1.0);
-            }
-
-            return mask;
         }
     }
 }
